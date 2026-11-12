@@ -32,6 +32,8 @@ public class BirdController : MonoBehaviour
 
     void Start()
     {
+        BirdSkinApplier.ApplySelectedSkin(this);
+
         rb = GetComponent<Rigidbody>();
         rb.useGravity = true;
         rb.constraints = RigidbodyConstraints.FreezeRotation;
@@ -49,6 +51,8 @@ public class BirdController : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f) return;
+
         CheckGrounded();
         HandleAirInput();
         UpdateAnimations();

@@ -1,18 +1,65 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
 
 public class HUDManager : MonoBehaviour
 {
+    [Header("Referencias de Jugador y Plumas")]
     public BirdController player;
     public GameObject featherIconPrefab; // Prefab con componente Image
     public Transform layoutGroup; // Horizontal o Vertical Layout Group
 
+    [Header("Barra de Estamina")]
+    public GameObject staminaBarRoot;
+    public Image staminaFillImage;
+    public Image staminaTrailImage;
+    public Text staminaValueText;
+
+    [Header("Estilo de Barra de Estamina")]
+    public Color fullStaminaColor = new Color(0.32f, 0.85f, 0.52f, 1f);
+    public Color midStaminaColor = new Color(0.96f, 0.72f, 0.22f, 1f);
+    public Color lowStaminaColor = new Color(0.92f, 0.28f, 0.24f, 1f);
+    public float fillSmoothSpeed = 12f;
+    public float trailSmoothSpeed = 3.5f;
+
     private List<GameObject> featherIcons = new List<GameObject>();
+    private float displayedFill = 1f;
+    private float displayedTrail = 1f;
+    private float lastMaxStamina = -1f;
+    private float flashTimer;
+
+    void Start()
+    {
+        if (player == null)
+        {
+            player = FindFirstObjectByType<BirdController>();
+        }
+
+        if (staminaFillImage == null)
+        {
+            CreateFallbackStaminaBar();
+        }
+
+        if (player != null && player.maxStamina > 0f)
+        {
+            float ratio = Mathf.Clamp01(player.currentStamina / player.maxStamina);
+            displayedFill = ratio;
+            displayedTrail = ratio;
+            lastMaxStamina = player.maxStamina;
+        }
+    }
 
     void Update()
     {
         if (player == null) return;
+
+        UpdateFeatherIcons();
+        UpdateStaminaBar();
+    }
+
+    void UpdateFeatherIcons()
+    {
+        if (featherIconPrefab == null || layoutGroup == null) return;
 
         // Calcular plumas totales y actuales (cada 5 pts = 1 pluma)
         int totalFeathers = Mathf.FloorToInt(player.maxStamina / 5f);
@@ -29,6 +76,8 @@ public class HUDManager : MonoBehaviour
         for (int i = 0; i < featherIcons.Count; i++)
         {
             Image img = featherIcons[i].GetComponent<Image>();
+            if (img == null) continue;
+
             if (i < filledFeathers)
             {
                 img.color = new Color(1f, 1f, 1f, 1f); // Llena
@@ -38,5 +87,174 @@ public class HUDManager : MonoBehaviour
                 img.color = new Color(1f, 1f, 1f, 0.2f); // Gastada (translúcida)
             }
         }
+    }
+
+    void UpdateStaminaBar()
+    {
+        if (staminaFillImage == null) return;
+
+        float max = Mathf.Max(0.01f, player.maxStamina);
+        float current = Mathf.Clamp(player.currentStamina, 0f, max);
+        float targetRatio = Mathf.Clamp01(current / max);
+
+        // Destello breve cuando aumenta la estamina máxima al recoger una pluma
+        if (lastMaxStamina > 0f && max > lastMaxStamina + 0.01f)
+        {
+            flashTimer = 0.5f;
+        }
+        lastMaxStamina = max;
+
+        displayedFill = Mathf.Lerp(displayedFill, targetRatio, fillSmoothSpeed * Time.deltaTime);
+        if (displayedFill > displayedTrail)
+        {
+            displayedTrail = displayedFill;
+        }
+        else
+        {
+            displayedTrail = Mathf.Lerp(displayedTrail, displayedFill, trailSmoothSpeed * Time.deltaTime);
+        }
+
+        staminaFillImage.fillAmount = displayedFill;
+        if (staminaTrailImage != null)
+        {
+            staminaTrailImage.fillAmount = displayedTrail;
+        }
+
+        // Color según nivel de estamina o falta de energía para aletear
+        bool cantFlap = current < player.staminaCostPerFlap;
+        Color targetColor;
+        if (cantFlap || targetRatio < 0.25f)
+        {
+            float pulse = 0.78f + Mathf.Sin(Time.time * 9f) * 0.22f;
+            targetColor = lowStaminaColor * pulse;
+            targetColor.a = 1f;
+        }
+        else if (targetRatio < 0.55f)
+        {
+            float t = (targetRatio - 0.25f) / 0.30f;
+            targetColor = Color.Lerp(lowStaminaColor, midStaminaColor, t);
+        }
+        else
+        {
+            float t = (targetRatio - 0.55f) / 0.45f;
+            targetColor = Color.Lerp(midStaminaColor, fullStaminaColor, t);
+        }
+
+        if (flashTimer > 0f)
+        {
+            flashTimer -= Time.deltaTime;
+            targetColor = Color.Lerp(targetColor, Color.white, Mathf.Clamp01(flashTimer * 2f) * 0.65f);
+        }
+
+        staminaFillImage.color = targetColor;
+
+        if (staminaValueText != null)
+        {
+            staminaValueText.text = $"{Mathf.CeilToInt(current)} / {Mathf.RoundToInt(max)}";
+        }
+    }
+
+    void CreateFallbackStaminaBar()
+    {
+        Canvas targetCanvas = null;
+        if (layoutGroup != null)
+        {
+            targetCanvas = layoutGroup.GetComponentInParent<Canvas>();
+        }
+        if (targetCanvas == null)
+        {
+            targetCanvas = FindFirstObjectByType<Canvas>();
+        }
+        if (targetCanvas == null) return;
+
+        Sprite whiteSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f));
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+        Sprite featherSprite = null;
+        if (featherIconPrefab != null)
+        {
+            Image prefabImg = featherIconPrefab.GetComponent<Image>();
+            if (prefabImg != null) featherSprite = prefabImg.sprite;
+        }
+
+        staminaBarRoot = new GameObject("StaminaBarPanel", typeof(RectTransform), typeof(Image));
+        staminaBarRoot.transform.SetParent(targetCanvas.transform, false);
+        RectTransform rootRect = staminaBarRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = new Vector2(0f, 1f);
+        rootRect.anchorMax = new Vector2(0f, 1f);
+        rootRect.pivot = new Vector2(0f, 1f);
+        rootRect.anchoredPosition = new Vector2(36f, -92f);
+        rootRect.sizeDelta = new Vector2(390f, 52f);
+        staminaBarRoot.GetComponent<Image>().color = new Color(0.07f, 0.09f, 0.14f, 0.86f);
+
+        float trackLeftOffset = 14f;
+        if (featherSprite != null)
+        {
+            GameObject iconObj = new GameObject("FeatherIcon", typeof(RectTransform), typeof(Image));
+            iconObj.transform.SetParent(staminaBarRoot.transform, false);
+            RectTransform iconRect = iconObj.GetComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0f, 0.5f);
+            iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(12f, 0f);
+            iconRect.sizeDelta = new Vector2(30f, 30f);
+            Image iconImg = iconObj.GetComponent<Image>();
+            iconImg.sprite = featherSprite;
+            iconImg.preserveAspect = true;
+            iconImg.color = new Color(1f, 0.86f, 0.42f, 1f);
+            iconImg.raycastTarget = false;
+            trackLeftOffset = 52f;
+        }
+
+        GameObject track = new GameObject("StaminaTrack", typeof(RectTransform), typeof(Image));
+        track.transform.SetParent(staminaBarRoot.transform, false);
+        RectTransform trackRect = track.GetComponent<RectTransform>();
+        trackRect.anchorMin = new Vector2(0f, 0.5f);
+        trackRect.anchorMax = new Vector2(1f, 0.5f);
+        trackRect.pivot = new Vector2(0f, 0.5f);
+        trackRect.anchoredPosition = new Vector2(trackLeftOffset, 0f);
+        trackRect.sizeDelta = new Vector2(-(trackLeftOffset + 94f), 20f);
+        track.GetComponent<Image>().color = new Color(0.16f, 0.20f, 0.28f, 1f);
+
+        GameObject trail = new GameObject("Trail", typeof(RectTransform), typeof(Image));
+        trail.transform.SetParent(track.transform, false);
+        RectTransform trailRect = trail.GetComponent<RectTransform>();
+        trailRect.anchorMin = Vector2.zero;
+        trailRect.anchorMax = Vector2.one;
+        trailRect.offsetMin = Vector2.zero;
+        trailRect.offsetMax = Vector2.zero;
+        staminaTrailImage = trail.GetComponent<Image>();
+        staminaTrailImage.sprite = whiteSprite;
+        staminaTrailImage.type = Image.Type.Filled;
+        staminaTrailImage.fillMethod = Image.FillMethod.Horizontal;
+        staminaTrailImage.color = new Color(1f, 1f, 1f, 0.45f);
+
+        GameObject fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+        fill.transform.SetParent(track.transform, false);
+        RectTransform fillRect = fill.GetComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+        staminaFillImage = fill.GetComponent<Image>();
+        staminaFillImage.sprite = whiteSprite;
+        staminaFillImage.type = Image.Type.Filled;
+        staminaFillImage.fillMethod = Image.FillMethod.Horizontal;
+        staminaFillImage.color = fullStaminaColor;
+
+        GameObject txtObj = new GameObject("ValueText", typeof(RectTransform), typeof(Text));
+        txtObj.transform.SetParent(staminaBarRoot.transform, false);
+        RectTransform txtRect = txtObj.GetComponent<RectTransform>();
+        txtRect.anchorMin = new Vector2(1f, 0f);
+        txtRect.anchorMax = new Vector2(1f, 1f);
+        txtRect.pivot = new Vector2(1f, 0.5f);
+        txtRect.anchoredPosition = new Vector2(-10f, 0f);
+        txtRect.sizeDelta = new Vector2(82f, 0f);
+        staminaValueText = txtObj.GetComponent<Text>();
+        staminaValueText.font = font;
+        staminaValueText.fontSize = 18;
+        staminaValueText.fontStyle = FontStyle.Bold;
+        staminaValueText.alignment = TextAnchor.MiddleRight;
+        staminaValueText.color = new Color(0.95f, 0.96f, 0.98f, 1f);
     }
 }

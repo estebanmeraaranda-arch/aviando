@@ -21,13 +21,19 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void Start()
     {
+        sensitivity = PlayerPrefs.GetFloat("MouseSensitivity", sensitivity);
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
 
+    public void RefreshSensitivity()
+    {
+        sensitivity = PlayerPrefs.GetFloat("MouseSensitivity", sensitivity);
+    }
+
     void LateUpdate()
     {
-        if (target == null) return;
+        if (target == null || Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked) return;
 
         // Entradas del ratón
         currentX += Input.GetAxis("Mouse X") * sensitivity;

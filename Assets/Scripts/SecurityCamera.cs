@@ -9,6 +9,7 @@ public class SecurityCamera : MonoBehaviour
     public bool sweepVertical = false;
 
     private Quaternion startRotation;
+    private bool hasTriggered;
 
     void Start()
     {
@@ -18,7 +19,7 @@ public class SecurityCamera : MonoBehaviour
     void Update()
     {
         float angle = Mathf.Sin(Time.time * sweepSpeed) * sweepAngle;
-        
+
         if (sweepVertical)
             transform.rotation = startRotation * Quaternion.Euler(angle, 0, 0);
         else
@@ -27,11 +28,21 @@ public class SecurityCamera : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
+        if (hasTriggered) return;
+
         if (other.CompareTag("Player"))
         {
-            Debug.Log("¡Jugador detectado! Reiniciando el nivel...");
-            // Recarga la escena actual completa, reseteando plumas y estamina
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            hasTriggered = true;
+
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnPlayerDetectedByCamera();
+            }
+            else
+            {
+                Debug.Log("¡Jugador detectado! Reiniciando el nivel...");
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            }
         }
     }
 }

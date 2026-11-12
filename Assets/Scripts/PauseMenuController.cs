@@ -20,6 +20,11 @@ public class PauseMenuController : MonoBehaviour
             return;
         }
 
+        if (!isPaused && Time.timeScale < 0.99f)
+        {
+            return;
+        }
+
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             if (isPaused) Resume();
@@ -51,6 +56,7 @@ public class PauseMenuController : MonoBehaviour
         isPaused = false;
         Time.timeScale = 1f;
         if (pauseCanvasObj != null) pauseCanvasObj.SetActive(false);
+        if (GameManager.Instance != null) GameManager.Instance.ResetDetections();
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 

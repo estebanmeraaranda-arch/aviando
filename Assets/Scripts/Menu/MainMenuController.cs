@@ -48,7 +48,7 @@ public class MainMenuController : MonoBehaviour
     {
         "Consejo: Mantén pulsado ESPACIO en el aire para planear suavemente y ahorrar plumas.",
         "Consejo: Recoge plumas doradas en la casa para aumentar tu número máximo de aleteos.",
-        "Consejo: Evita el cono de las cámaras de seguridad o reiniciarán el nivel.",
+        "Consejo: Evita las cámaras de seguridad: si te pillan 3 veces, ¡te descubrirá la vieja y perderás!",
         "Consejo: Al aterrizar sobre muebles o el suelo, tu estamina de vuelo se recarga rápidamente.",
         "Consejo: Usa la rueda del ratón durante el vuelo para acercar o alejar la cámara."
     };

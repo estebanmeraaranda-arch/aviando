@@ -200,6 +200,45 @@ public static class MainMenuBuilder
         hud.staminaFillImage = fillImg;
         hud.staminaTrailImage = trailImg;
         hud.staminaValueText = valTxt;
+
+        // --- 1b. Indicador HUD de Detecciones de Cámara (0 / 3) ---
+        Transform existingAlerts = canvas.transform.Find("AlertasPanel");
+        if (existingAlerts != null) Object.DestroyImmediate(existingAlerts.gameObject);
+
+        GameObject alertsPanel = CreateBox(canvas.transform, "AlertasPanel", uiSprite, new Color(0.07f, 0.09f, 0.14f, 0.86f));
+        RectTransform alertsRect = alertsPanel.GetComponent<RectTransform>();
+        alertsRect.anchorMin = new Vector2(0f, 1f);
+        alertsRect.anchorMax = new Vector2(0f, 1f);
+        alertsRect.pivot = new Vector2(0f, 1f);
+        alertsRect.anchoredPosition = new Vector2(36f, -152f);
+        alertsRect.sizeDelta = new Vector2(390f, 44f);
+
+        Text alertStatusTxt = CreateText(alertsPanel.transform, "StatusText", "Vigilancia: 0 / 3", font, 18, FontStyle.Bold, new Color(0.95f, 0.96f, 0.98f, 1f), TextAnchor.MiddleLeft);
+        alertStatusTxt.rectTransform.anchorMin = new Vector2(0f, 0f);
+        alertStatusTxt.rectTransform.anchorMax = new Vector2(0f, 1f);
+        alertStatusTxt.rectTransform.pivot = new Vector2(0f, 0.5f);
+        alertStatusTxt.rectTransform.anchoredPosition = new Vector2(14f, 0f);
+        alertStatusTxt.rectTransform.sizeDelta = new Vector2(210f, 0f);
+        alertStatusTxt.raycastTarget = false;
+
+        Image[] dots = new Image[3];
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject dotObj = CreateBox(alertsPanel.transform, $"Dot_{i + 1}", uiSprite, hud.safeDotColor);
+            RectTransform dotRect = dotObj.GetComponent<RectTransform>();
+            dotRect.anchorMin = new Vector2(1f, 0.5f);
+            dotRect.anchorMax = new Vector2(1f, 0.5f);
+            dotRect.pivot = new Vector2(1f, 0.5f);
+            dotRect.anchoredPosition = new Vector2(-14f - (2 - i) * 32f, 0f);
+            dotRect.sizeDelta = new Vector2(22f, 22f);
+            Image dotImg = dotObj.GetComponent<Image>();
+            dotImg.raycastTarget = false;
+            dots[i] = dotImg;
+        }
+
+        hud.detectionPanelRoot = alertsPanel;
+        hud.detectionStatusText = alertStatusTxt;
+        hud.detectionDots = dots;
         EditorUtility.SetDirty(hud);
 
         // --- 2. GameManager en EscenarioCasa (para EndScreen + RestartDemo) ---
@@ -238,6 +277,52 @@ public static class MainMenuBuilder
 
         gm.endScreenPanel = winPanel;
         winPanel.SetActive(false);
+
+        // --- 3b. Panel Derrota en Canvas (3 detecciones de cámara) ---
+        Transform existingLose = canvas.transform.Find("Panel Derrota");
+        if (existingLose != null) Object.DestroyImmediate(existingLose.gameObject);
+
+        GameObject losePanel = CreateFullPanel(canvas.transform, "Panel Derrota");
+        Image loseBg = losePanel.AddComponent<Image>();
+        loseBg.color = new Color(0.10f, 0.02f, 0.03f, 0.86f);
+
+        GameObject loseCard = CreateBox(losePanel.transform, "CardDerrota", uiSprite, new Color(0.08f, 0.09f, 0.13f, 0.96f));
+        RectTransform loseCardRect = loseCard.GetComponent<RectTransform>();
+        loseCardRect.sizeDelta = new Vector2(700f, 380f);
+
+        Text loseTitle = CreateText(loseCard.transform, "Title", "¡TE DESCUBRIÓ LA VIEJA!", font, 40, FontStyle.Bold, new Color(0.95f, 0.32f, 0.28f, 1f), TextAnchor.MiddleCenter);
+        loseTitle.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        loseTitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        loseTitle.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        loseTitle.rectTransform.anchoredPosition = new Vector2(0f, 105f);
+        loseTitle.rectTransform.sizeDelta = new Vector2(640f, 70f);
+
+        Text loseSub = CreateText(loseCard.transform, "Subtitle", "Las cámaras de seguridad te pillaron 3 veces.\n¡La vieja sabe que estás en la casa!", font, 23, FontStyle.Normal, new Color(0.88f, 0.90f, 0.94f, 1f), TextAnchor.MiddleCenter);
+        loseSub.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        loseSub.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        loseSub.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        loseSub.rectTransform.anchoredPosition = new Vector2(0f, 20f);
+        loseSub.rectTransform.sizeDelta = new Vector2(620f, 90f);
+
+        GameObject loseRetryObj = CreateBox(loseCard.transform, "Btn_Reintentar", uiSprite, new Color(0.84f, 0.30f, 0.24f, 1f));
+        RectTransform loseRetryRect = loseRetryObj.GetComponent<RectTransform>();
+        loseRetryRect.anchoredPosition = new Vector2(-145f, -95f);
+        loseRetryRect.sizeDelta = new Vector2(260f, 64f);
+        Button loseRetryBtn = loseRetryObj.AddComponent<Button>();
+        UnityEventTools.AddPersistentListener(loseRetryBtn.onClick, gm.RestartDemo);
+        CreateText(loseRetryObj.transform, "Label", "Reintentar", font, 24, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+
+        GameObject loseMenuObj = CreateBox(loseCard.transform, "Btn_MenuPrincipal", uiSprite, new Color(0.24f, 0.29f, 0.39f, 1f));
+        RectTransform loseMenuRect = loseMenuObj.GetComponent<RectTransform>();
+        loseMenuRect.anchoredPosition = new Vector2(145f, -95f);
+        loseMenuRect.sizeDelta = new Vector2(260f, 64f);
+        Button loseMenuBtn = loseMenuObj.AddComponent<Button>();
+        UnityEventTools.AddPersistentListener(loseMenuBtn.onClick, gm.ReturnToMainMenu);
+        CreateText(loseMenuObj.transform, "Label", "Menú Principal", font, 24, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+
+        gm.maxDetections = 3;
+        gm.gameOverPanel = losePanel;
+        losePanel.SetActive(false);
         EditorUtility.SetDirty(gm);
 
         // --- 4. Objeto 3D que Rota: Meta_Victoria ---
@@ -725,7 +810,7 @@ public static class MainMenuBuilder
             "REGLAS DEL ESCENARIO\n" +
             "•  Plumas Doradas: Cada pluma recogida amplía tu estamina máxima (+1 aleteo).\n" +
             "•  Descanso Seguro: Tocar el suelo o muebles recarga rápidamente tus plumas.\n" +
-            "•  Cámaras de Vigilancia: Si entras en su cono rojo, el nivel se reinicia.";
+            "•  Cámaras de Vigilancia: Cada vez que te pillan suma 1 alerta. ¡A las 3 te descubre la vieja y pierdes!";
 
         GameObject rulesBox = CreateBox(howCard.transform, "RulesBox", uiSprite, new Color(0.11f, 0.15f, 0.22f, 0.92f));
         RectTransform rulesBoxRect = rulesBox.GetComponent<RectTransform>();

@@ -22,6 +22,13 @@ public class HUDManager : MonoBehaviour
     public float fillSmoothSpeed = 12f;
     public float trailSmoothSpeed = 3.5f;
 
+    [Header("Indicador de Detección de Cámaras")]
+    public GameObject detectionPanelRoot;
+    public Text detectionStatusText;
+    public Image[] detectionDots;
+    public Color safeDotColor = new Color(0.24f, 0.30f, 0.40f, 1f);
+    public Color alertDotColor = new Color(0.95f, 0.25f, 0.22f, 1f);
+
     private List<GameObject> featherIcons = new List<GameObject>();
     private float displayedFill = 1f;
     private float displayedTrail = 1f;
@@ -35,9 +42,23 @@ public class HUDManager : MonoBehaviour
             player = FindFirstObjectByType<BirdController>();
         }
 
+        if (GameManager.Instance == null)
+        {
+            GameManager existingGm = GetComponent<GameManager>() ?? FindFirstObjectByType<GameManager>();
+            if (existingGm == null)
+            {
+                gameObject.AddComponent<GameManager>();
+            }
+        }
+
         if (staminaFillImage == null)
         {
             CreateFallbackStaminaBar();
+        }
+
+        if (detectionPanelRoot == null)
+        {
+            CreateFallbackDetectionPanel();
         }
 
         if (player != null && player.maxStamina > 0f)
@@ -46,6 +67,20 @@ public class HUDManager : MonoBehaviour
             displayedFill = ratio;
             displayedTrail = ratio;
             lastMaxStamina = player.maxStamina;
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnDetectionCountChanged += UpdateDetectionUI;
+            UpdateDetectionUI(GameManager.Instance.currentDetections, GameManager.Instance.maxDetections);
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnDetectionCountChanged -= UpdateDetectionUI;
         }
     }
 
@@ -154,17 +189,94 @@ public class HUDManager : MonoBehaviour
         }
     }
 
-    void CreateFallbackStaminaBar()
+    Canvas FindTargetCanvas()
     {
-        Canvas targetCanvas = null;
         if (layoutGroup != null)
         {
-            targetCanvas = layoutGroup.GetComponentInParent<Canvas>();
+            Canvas fromLayout = layoutGroup.GetComponentInParent<Canvas>();
+            if (fromLayout != null) return fromLayout;
         }
-        if (targetCanvas == null)
+        return FindFirstObjectByType<Canvas>();
+    }
+
+    void UpdateDetectionUI(int current, int max)
+    {
+        if (detectionStatusText != null)
         {
-            targetCanvas = FindFirstObjectByType<Canvas>();
+            detectionStatusText.text = $"Vigilancia: {current} / {max}";
+            detectionStatusText.color = current >= max - 1 && current > 0
+                ? new Color(1f, 0.42f, 0.36f, 1f)
+                : new Color(0.95f, 0.96f, 0.98f, 1f);
         }
+
+        if (detectionDots != null)
+        {
+            for (int i = 0; i < detectionDots.Length; i++)
+            {
+                if (detectionDots[i] == null) continue;
+                detectionDots[i].color = i < current ? alertDotColor : safeDotColor;
+            }
+        }
+    }
+
+    void CreateFallbackDetectionPanel()
+    {
+        Canvas targetCanvas = FindTargetCanvas();
+        if (targetCanvas == null) return;
+
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+        detectionPanelRoot = new GameObject("AlertasPanel", typeof(RectTransform), typeof(Image));
+        detectionPanelRoot.transform.SetParent(targetCanvas.transform, false);
+        RectTransform rootRect = detectionPanelRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = new Vector2(0f, 1f);
+        rootRect.anchorMax = new Vector2(0f, 1f);
+        rootRect.pivot = new Vector2(0f, 1f);
+        rootRect.anchoredPosition = new Vector2(36f, -152f);
+        rootRect.sizeDelta = new Vector2(390f, 44f);
+        Image rootImg = detectionPanelRoot.GetComponent<Image>();
+        rootImg.color = new Color(0.07f, 0.09f, 0.14f, 0.86f);
+        rootImg.raycastTarget = false;
+
+        GameObject labelObj = new GameObject("StatusText", typeof(RectTransform), typeof(Text));
+        labelObj.transform.SetParent(detectionPanelRoot.transform, false);
+        RectTransform labelRect = labelObj.GetComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0f, 0f);
+        labelRect.anchorMax = new Vector2(0f, 1f);
+        labelRect.pivot = new Vector2(0f, 0.5f);
+        labelRect.anchoredPosition = new Vector2(14f, 0f);
+        labelRect.sizeDelta = new Vector2(210f, 0f);
+        detectionStatusText = labelObj.GetComponent<Text>();
+        detectionStatusText.font = font;
+        detectionStatusText.fontSize = 18;
+        detectionStatusText.fontStyle = FontStyle.Bold;
+        detectionStatusText.alignment = TextAnchor.MiddleLeft;
+        detectionStatusText.color = new Color(0.95f, 0.96f, 0.98f, 1f);
+        detectionStatusText.text = "Vigilancia: 0 / 3";
+        detectionStatusText.raycastTarget = false;
+
+        int dotCount = GameManager.Instance != null ? GameManager.Instance.maxDetections : 3;
+        detectionDots = new Image[dotCount];
+        for (int i = 0; i < dotCount; i++)
+        {
+            GameObject dotObj = new GameObject($"Dot_{i + 1}", typeof(RectTransform), typeof(Image));
+            dotObj.transform.SetParent(detectionPanelRoot.transform, false);
+            RectTransform dotRect = dotObj.GetComponent<RectTransform>();
+            dotRect.anchorMin = new Vector2(1f, 0.5f);
+            dotRect.anchorMax = new Vector2(1f, 0.5f);
+            dotRect.pivot = new Vector2(1f, 0.5f);
+            dotRect.anchoredPosition = new Vector2(-14f - (dotCount - 1 - i) * 32f, 0f);
+            dotRect.sizeDelta = new Vector2(22f, 22f);
+            Image dotImg = dotObj.GetComponent<Image>();
+            dotImg.color = safeDotColor;
+            dotImg.raycastTarget = false;
+            detectionDots[i] = dotImg;
+        }
+    }
+
+    void CreateFallbackStaminaBar()
+    {
+        Canvas targetCanvas = FindTargetCanvas();
         if (targetCanvas == null) return;
 
         Sprite whiteSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f));

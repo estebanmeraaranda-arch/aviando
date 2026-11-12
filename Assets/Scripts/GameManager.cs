@@ -34,14 +34,15 @@ public class GameManager : MonoBehaviour
     public const string FullscreenPrefKey = "Fullscreen";
 
     private bool isLoadingScene;
+    private bool adoptedEndScreenPanel;
 
     void Awake()
     {
         if (Instance != null && Instance != this)
         {
-            // Si una nueva escena trae referencias frescas de paneles, actualizarlas antes de destruir el duplicado
+            // Si una nueva escena trae referencias frescas de paneles, actualizarlas antes de destruir solo el componente duplicado
             Instance.AdoptMenuReferences(this);
-            Destroy(gameObject);
+            Destroy(this);
             return;
         }
 
@@ -74,7 +75,11 @@ public class GameManager : MonoBehaviour
         if (incoming.howToPlayPanel != null) howToPlayPanel = incoming.howToPlayPanel;
         if (incoming.settingsPanel != null) settingsPanel = incoming.settingsPanel;
         if (incoming.loadingPanel != null) loadingPanel = incoming.loadingPanel;
-        if (incoming.endScreenPanel != null) endScreenPanel = incoming.endScreenPanel;
+        if (incoming.endScreenPanel != null)
+        {
+            endScreenPanel = incoming.endScreenPanel;
+            adoptedEndScreenPanel = true;
+        }
         if (!string.IsNullOrEmpty(incoming.gameplaySceneName)) gameplaySceneName = incoming.gameplaySceneName;
         if (!string.IsNullOrEmpty(incoming.mainMenuSceneName)) mainMenuSceneName = incoming.mainMenuSceneName;
     }
@@ -86,6 +91,7 @@ public class GameManager : MonoBehaviour
 
         if (scene.name == mainMenuSceneName)
         {
+            adoptedEndScreenPanel = false;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             SetPanel(mainMenuPanel);
@@ -166,6 +172,16 @@ public class GameManager : MonoBehaviour
     public void ShowEndScreen()
     {
         SetPanel(endScreenPanel);
+        if (adoptedEndScreenPanel && endScreenPanel != null)
+        {
+            // Si el GameManager local de la escena fue reemplazado por el persistente, re-enlazar el botón de reinicio
+            var btn = endScreenPanel.GetComponentInChildren<UnityEngine.UI.Button>(true);
+            if (btn != null)
+            {
+                btn.onClick.RemoveListener(RestartDemo);
+                btn.onClick.AddListener(RestartDemo);
+            }
+        }
         Time.timeScale = 0f; // Pausa el universo del juego
         Cursor.lockState = CursorLockMode.None; // Libera el mouse para poder hacer clic
         Cursor.visible = true;
@@ -175,6 +191,8 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f; // Devuelve el tiempo a la normalidad
         SetPanel(null); // Oculta todos los paneles
+        adoptedEndScreenPanel = false;
+        endScreenPanel = null;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -213,6 +231,8 @@ public class GameManager : MonoBehaviour
     IEnumerator LoadSceneAsyncCoroutine(string sceneName)
     {
         isLoadingScene = true;
+        adoptedEndScreenPanel = false;
+        endScreenPanel = null;
         OnLoadingProgress?.Invoke(0f);
 
         float minDuration = 0.65f;

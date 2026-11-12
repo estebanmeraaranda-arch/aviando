@@ -87,7 +87,7 @@ public static class MainMenuBuilder
         Debug.Log("[MainMenuBuilder] Escena MainMenu construida y guardada en " + ScenePath);
     }
 
-    [MenuItem("Aviando/Agregar Barra de Estamina a EscenarioCasa")]
+    [MenuItem("Aviando/Configurar EscenarioCasa (Meta_Victoria + Panel Victoria + Estamina)")]
     public static void AddStaminaBarToGameplayScene()
     {
         if (!System.IO.File.Exists(GameplayScenePath))
@@ -108,15 +108,13 @@ public static class MainMenuBuilder
             return;
         }
 
-        Transform existing = canvas.transform.Find("StaminaBarPanel");
-        if (existing != null)
-        {
-            Object.DestroyImmediate(existing.gameObject);
-        }
-
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         Sprite featherSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Img/pluma.png");
         Sprite uiSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+
+        // --- 1. Barra de Estamina ---
+        Transform existingBar = canvas.transform.Find("StaminaBarPanel");
+        if (existingBar != null) Object.DestroyImmediate(existingBar.gameObject);
 
         GameObject panel = CreateBox(canvas.transform, "StaminaBarPanel", uiSprite, new Color(0.07f, 0.09f, 0.14f, 0.86f));
         RectTransform panelRect = panel.GetComponent<RectTransform>();
@@ -126,7 +124,6 @@ public static class MainMenuBuilder
         panelRect.anchoredPosition = new Vector2(36f, -92f);
         panelRect.sizeDelta = new Vector2(390f, 52f);
 
-        // Icono de pluma a la izquierda
         if (featherSprite != null)
         {
             GameObject iconObj = new GameObject("FeatherIcon", typeof(RectTransform), typeof(Image));
@@ -144,7 +141,6 @@ public static class MainMenuBuilder
             iconImg.raycastTarget = false;
         }
 
-        // Fondo de la barra
         GameObject track = CreateBox(panel.transform, "StaminaTrack", uiSprite, new Color(0.16f, 0.20f, 0.28f, 1f));
         RectTransform trackRect = track.GetComponent<RectTransform>();
         trackRect.anchorMin = new Vector2(0f, 0.5f);
@@ -153,7 +149,6 @@ public static class MainMenuBuilder
         trackRect.anchoredPosition = new Vector2(52f, 0f);
         trackRect.sizeDelta = new Vector2(-146f, 20f);
 
-        // Barra de estela (trail)
         GameObject trail = new GameObject("StaminaTrail", typeof(RectTransform), typeof(Image));
         trail.transform.SetParent(track.transform, false);
         RectTransform trailRect = trail.GetComponent<RectTransform>();
@@ -169,7 +164,6 @@ public static class MainMenuBuilder
         trailImg.color = new Color(1f, 1f, 1f, 0.42f);
         trailImg.raycastTarget = false;
 
-        // Barra principal de relleno
         GameObject fill = new GameObject("StaminaFill", typeof(RectTransform), typeof(Image));
         fill.transform.SetParent(track.transform, false);
         RectTransform fillRect = fill.GetComponent<RectTransform>();
@@ -185,7 +179,6 @@ public static class MainMenuBuilder
         fillImg.color = hud.fullStaminaColor;
         fillImg.raycastTarget = false;
 
-        // Texto numérico a la derecha
         GameObject valObj = new GameObject("StaminaValue", typeof(RectTransform), typeof(Text));
         valObj.transform.SetParent(panel.transform, false);
         RectTransform valRect = valObj.GetComponent<RectTransform>();
@@ -207,13 +200,76 @@ public static class MainMenuBuilder
         hud.staminaFillImage = fillImg;
         hud.staminaTrailImage = trailImg;
         hud.staminaValueText = valTxt;
-
         EditorUtility.SetDirty(hud);
+
+        // --- 2. GameManager en EscenarioCasa (para EndScreen + RestartDemo) ---
+        GameManager gm = hud.GetComponent<GameManager>();
+        if (gm == null) gm = Object.FindFirstObjectByType<GameManager>();
+        if (gm == null) gm = hud.gameObject.AddComponent<GameManager>();
+        gm.mainMenuSceneName = "MainMenu";
+        gm.gameplaySceneName = "EscenarioCasa";
+
+        // --- 3. Panel Victoria en Canvas ---
+        Transform existingWin = canvas.transform.Find("Panel Victoria");
+        if (existingWin != null) Object.DestroyImmediate(existingWin.gameObject);
+
+        GameObject winPanel = CreateFullPanel(canvas.transform, "Panel Victoria");
+        Image winBg = winPanel.AddComponent<Image>();
+        winBg.color = new Color(0f, 0f, 0f, 0.72f);
+
+        GameObject winCard = CreateBox(winPanel.transform, "CardVictoria", uiSprite, new Color(0.08f, 0.11f, 0.17f, 0.96f));
+        RectTransform winCardRect = winCard.GetComponent<RectTransform>();
+        winCardRect.sizeDelta = new Vector2(680f, 340f);
+
+        Text winTxt = CreateText(winCard.transform, "TextoVictoria", "¡Demo completada! Gracias por jugar", font, 36, FontStyle.Bold, new Color(0.98f, 0.96f, 0.90f, 1f), TextAnchor.MiddleCenter);
+        winTxt.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        winTxt.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        winTxt.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        winTxt.rectTransform.anchoredPosition = new Vector2(0f, 52f);
+        winTxt.rectTransform.sizeDelta = new Vector2(600f, 110f);
+
+        GameObject retryBtnObj = CreateBox(winCard.transform, "Btn_VolverAJugar", uiSprite, new Color(0.84f, 0.30f, 0.24f, 1f));
+        RectTransform retryRect = retryBtnObj.GetComponent<RectTransform>();
+        retryRect.anchoredPosition = new Vector2(0f, -72f);
+        retryRect.sizeDelta = new Vector2(320f, 70f);
+        Button retryBtn = retryBtnObj.AddComponent<Button>();
+        UnityEventTools.AddPersistentListener(retryBtn.onClick, gm.RestartDemo);
+        CreateText(retryBtnObj.transform, "Label", "Volver a Jugar", font, 26, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+
+        gm.endScreenPanel = winPanel;
+        winPanel.SetActive(false);
+        EditorUtility.SetDirty(gm);
+
+        // --- 4. Objeto 3D que Rota: Meta_Victoria ---
+        GameObject existingGoal = GameObject.Find("Meta_Victoria");
+        if (existingGoal != null) Object.DestroyImmediate(existingGoal);
+
+        GameObject goalObj = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        goalObj.name = "Meta_Victoria";
+        goalObj.transform.position = new Vector3(9.82f, 1.85f, 6.80f);
+        goalObj.transform.localScale = new Vector3(0.45f, 0.45f, 0.45f);
+
+        MeshRenderer mr = goalObj.GetComponent<MeshRenderer>();
+        if (mr != null) Object.DestroyImmediate(mr);
+
+        MeshCollider oldMc = goalObj.GetComponent<MeshCollider>();
+        if (oldMc != null) Object.DestroyImmediate(oldMc);
+
+        BoxCollider triggerCol = goalObj.AddComponent<BoxCollider>();
+        triggerCol.isTrigger = true;
+        triggerCol.size = new Vector3(2.2f, 2.2f, 1.5f);
+
+        SpriteRenderer sr = goalObj.AddComponent<SpriteRenderer>();
+        if (featherSprite != null) sr.sprite = featherSprite;
+        sr.color = new Color(1f, 0.88f, 0.32f, 1f);
+
+        goalObj.AddComponent<LevelEndItem>();
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
 
         AssetDatabase.SaveAssets();
-        Debug.Log("[MainMenuBuilder] Barra de estamina agregada y guardada en " + GameplayScenePath);
+        Debug.Log("[MainMenuBuilder] Meta_Victoria, Panel Victoria y Barra de Estamina configurados en " + GameplayScenePath);
     }
 
     static void SetupLightingAndVolume()
@@ -669,7 +725,7 @@ public static class MainMenuBuilder
             "REGLAS DEL ESCENARIO\n" +
             "•  Plumas Doradas: Cada pluma recogida amplía tu estamina máxima (+1 aleteo).\n" +
             "•  Descanso Seguro: Tocar el suelo o muebles recarga rápidamente tus plumas.\n" +
-            "•  Cámaras de Vigilancia: Si entras en su cono rojo, rebobinarás a tu último punto seguro.";
+            "•  Cámaras de Vigilancia: Si entras en su cono rojo, el nivel se reinicia.";
 
         GameObject rulesBox = CreateBox(howCard.transform, "RulesBox", uiSprite, new Color(0.11f, 0.15f, 0.22f, 0.92f));
         RectTransform rulesBoxRect = rulesBox.GetComponent<RectTransform>();
